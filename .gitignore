@@ -8,8 +8,3 @@
 # Allow only test folder
 !/test/
 !/test/**
-
-# Exclude login files
-/test/pageobjects/LoginPage.js
-/test/specs/login.spec.js
-/test/testData/loginTestData.js
