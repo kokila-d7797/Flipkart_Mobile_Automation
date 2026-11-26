@@ -16,13 +16,10 @@ describe('Flipkart - Product Details Page Tests', function () {
     this.timeout(timeouts.test);
 
     before(async () => {
+    await loginPage.ensureLoggedIn();
+    await productPage.openProductDetails();
 
-        // Step 1: Check existing login session
-        await loginPage.ensureLoggedIn();
-
-        // Step 2: Search and open the product
-        await productPage.openProductDetails();
-    });
+});
 
     it('PDP_01 - Verify product details page is opened', async () => {
         const price = await productPage.validatePrice();

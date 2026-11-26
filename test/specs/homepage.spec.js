@@ -1,7 +1,6 @@
-
-import { expect, browser } from '@wdio/globals';
-import HomePage from '../pageobjects/HomePage.js';
-import { HOME_TEST_DATA } from '../testData/homeTestData.js';
+const { expect, browser } = require('@wdio/globals');
+const HomePage = require('../pageobjects/HomePage');
+const { HOME_TEST_DATA } = require('../testData/homeTestData');
 
 describe('Flipkart Home Page Tests', () => {
 

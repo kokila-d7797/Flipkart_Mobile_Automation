@@ -5,24 +5,25 @@ const TEST_DATA = {
     },
 
     search: {
-        query: 'laptop',
+        query: 'Samsung Galaxy Book4',
         suggestionCategory: 'Laptops',          // suggestion content-desc: "<query>, in <category>"
         productKeyword: 'Samsung Galaxy Book4'  // first product card must contain this
     },
 
-    // Search locators: tried in order, the first one that is displayed is used.
-    // searchEntry = the search bar on the home screen (a ViewGroup, tapped to open search)
-    // searchInput = the real text field that appears after tapping it
     searchLocators: {
         searchEntry: [
-            // Recorded earlier in Appium Inspector
-            '//android.view.ViewGroup[@resource-id="com.flipkart.android:id/tab_bar"]/android.widget.FrameLayout[@resource-id="com.flipkart.android:id/contentFragment"]/android.widget.FrameLayout[@resource-id="com.flipkart.android:id/contentFragment"]/android.widget.FrameLayout[@resource-id="com.flipkart.android:id/main_content"]/android.widget.FrameLayout/android.view.ViewGroup/android.view.ViewGroup[2]/android.view.ViewGroup[3]/android.view.ViewGroup/android.view.ViewGroup[2]/android.view.ViewGroup',
+            // Home search control from the current Appium Inspector hierarchy.
+            '//android.view.ViewGroup[@resource-id="com.flipkart.android:id/tab_bar"]/android.widget.FrameLayout[@resource-id="com.flipkart.android:id/contentFragment"]/android.widget.FrameLayout[@resource-id="com.flipkart.android:id/contentFragment"]/android.widget.FrameLayout[@resource-id="com.flipkart.android:id/main_content"]/android.widget.FrameLayout/android.view.ViewGroup/android.view.ViewGroup[3]/android.view.ViewGroup[3]/android.view.ViewGroup/android.view.ViewGroup[2]/android.view.ViewGroup',
             // Fallbacks
             'android=new UiSelector().descriptionContains("Search")',
             'android=new UiSelector().textContains("Search")',
             'android=new UiSelector().className("android.widget.EditText")'
         ],
-        searchInput: 'android=new UiSelector().className("android.widget.EditText")'
+        searchInput: [
+    'android=new UiSelector().className("android.widget.EditText")',
+    'android=new UiSelector().resourceIdMatches(".*search.*")',
+    'android=new UiSelector().textContains("Search")'
+]
     },
 
     // Fragments of content-desc used to find elements (seen in Appium Inspector)
@@ -65,12 +66,6 @@ const TEST_DATA = {
         enter: 66
     },
 
-    // UiAutomator2 settings applied once before the tests. Flipkart keeps animating
-    // (banners, video), which makes UiAutomator wait for the screen to be "idle" and
-    // slows every command. A small idle timeout speeds up each lookup.
-    driverSettings: {
-        waitForIdleTimeout: 100
-    }
 };
 
 module.exports = { TEST_DATA };

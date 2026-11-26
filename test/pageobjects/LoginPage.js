@@ -1,21 +1,65 @@
 // pageobjects/LoginPage.js
-const { $, expect, browser } = require('@wdio/globals');
+const { $, $$, expect, browser } = require('@wdio/globals');
 const { LOGIN_DATA } = require('../testData/loginTestData');
+const HomePage = require('./HomePage');
 
 class LoginPage {
 
     constructor() {
-    this.accountTab ='~Account';
-    this.loginButton ='//android.widget.TextView[@text="Log In"]';
-    this.phoneNumberField ='~Phone Number';
-    this.continueButton ='id=com.flipkart.android:id/button';
-    this.otpField ='//android.widget.EditText[@resource-id="com.flipkart.android:id/otp_view"]';
-    this.verifyButton ='id=com.flipkart.android:id/button';
-}
+        this.accountTabLocators = [
+            '~Account',
+            'android=new UiSelector().description("Account")',
+            '//*[@content-desc="Account"]'
+        ];
+        this.homeTabLocators = [
+            '~Home',
+            'android=new UiSelector().description("Home")',
+            '//android.widget.FrameLayout[@resource-id="com.flipkart.android:id/bottom_bar_container_fixed_height"]/android.widget.FrameLayout[@resource-id="com.flipkart.android:id/main_content"]/android.view.ViewGroup/android.view.ViewGroup[1]/android.view.ViewGroup/android.view.ViewGroup/android.view.ViewGroup/android.view.ViewGroup/android.view.ViewGroup[3]/android.view.ViewGroup/android.view.ViewGroup[3]/android.view.ViewGroup'
+        ];
+        this.loginButton = 'android=new UiSelector().textMatches("(?i)^log ?in$")';
+        this.phoneNumberField = '~Phone Number';
+        this.continueButton = 'id=com.flipkart.android:id/button';
+        this.otpField = '//android.widget.EditText[@resource-id="com.flipkart.android:id/otp_view"]';
+        this.verifyButton = 'id=com.flipkart.android:id/button';
+        this.accountDashboardIndicators = [
+            {
+                name: 'greeting',
+                locators: [
+                    `android=new UiSelector().textStartsWith("${LOGIN_DATA.accountDashboard.greetingPrefix}")`,
+                    `android=new UiSelector().descriptionStartsWith("${LOGIN_DATA.accountDashboard.greetingPrefix}")`
+                ]
+            },
+            {
+                name: 'orders',
+                locators: [
+                    `android=new UiSelector().textContains("${LOGIN_DATA.accountDashboard.ordersLabel}")`,
+                    `android=new UiSelector().descriptionContains("${LOGIN_DATA.accountDashboard.ordersLabel}")`
+                ]
+            },
+            {
+                name: 'wishlist',
+                locators: [
+                    `android=new UiSelector().textContains("${LOGIN_DATA.accountDashboard.wishlistLabel}")`,
+                    `android=new UiSelector().descriptionContains("${LOGIN_DATA.accountDashboard.wishlistLabel}")`
+                ]
+            },
+            ...LOGIN_DATA.accountDashboard.membershipLabels.map((label) => ({
+                name: 'membership',
+                locators: [
+                    `android=new UiSelector().textContains("${label}")`,
+                    `android=new UiSelector().descriptionContains("${label}")`
+                ]
+            }))
+        ];
+    }
 
 //element getters
 get account() {
-    return $(this.accountTab);
+    return $(this.accountTabLocators[0]);
+}
+
+get home() {
+    return $(this.homeTabLocators[0]);
 }
 
 get login() {
@@ -41,7 +85,11 @@ get verifyBtn() {
 async openApp() {
 
     await browser.activateApp(LOGIN_DATA.appPackage);
-    await browser.pause(5000);
+    await this.waitForVisibleElement(
+        this.accountTabLocators,
+        LOGIN_DATA.timeouts.appLaunch,
+        'Account tab was not displayed after launching Flipkart'
+    );
     console.log('Flipkart application launched');
 }
 
@@ -99,8 +147,6 @@ async openApp() {
             if (await element.isDisplayed()) {
 
                 await element.click();
-
-                await browser.pause(1500);
             }
 
         } catch (error) {
@@ -140,14 +186,11 @@ async openApp() {
         LOGIN_DATA.appPackage
     );
 
-    await browser.pause(5000);
-
-    const account =
-        await $('~Account');
-
-    await account.waitForDisplayed({
-        timeout: 30000
-    });
+    const account = await this.waitForVisibleElement(
+        this.accountTabLocators,
+        LOGIN_DATA.timeouts.appLaunch,
+        'Account tab was not displayed after launching Flipkart'
+    );
 
     await account.click();
 
@@ -322,24 +365,235 @@ async waitForOtpScreen() {
     console.log('OTP screen loaded');
 }
 
-async verifyLoginSucceeded() {
+async ensureLoggedIn() {
 
-    await this.otpInput.waitForDisplayed({
-        reverse: true,
-        timeout: 30000,
-        timeoutMsg: 'OTP screen did not close after verification'
+    console.log('[Login] Launching Flipkart application');
+    await browser.activateApp(
+        LOGIN_DATA.appPackage
+    );
+
+    console.log('[Login] Ensuring Home screen is displayed before opening Account');
+    await HomePage.navigateToHome();
+
+    console.log('[Login] Opening Account tab');
+    const account = await this.waitForVisibleElement(
+        this.accountTabLocators,
+        LOGIN_DATA.timeouts.appLaunch,
+        'Account tab was not displayed after launching Flipkart'
+    );
+    // Click the content-description parent, not the non-clickable "Account" text label.
+    await account.click();
+
+    console.log('[Login] Checking account dashboard state');
+    try {
+        await browser.waitUntil(
+            async () => {
+                const dashboardDisplayed = await this.isAuthenticatedAccountDashboard();
+                const loginVisible = await this.login.isDisplayed().catch(() => false);
+                return dashboardDisplayed || loginVisible;
+            },
+            {
+                timeout: LOGIN_DATA.timeouts.accountState,
+                interval: 500,
+                timeoutMsg: 'Account tab showed neither dashboard indicators nor a Log In button'
+            }
+        );
+    } catch (error) {
+        let screenLabels = 'unavailable';
+        try {
+            screenLabels = (await this.getAccountScreenLabels()).join(' | ') || '(none found)';
+        } catch (diagnosticError) {
+            screenLabels = `unavailable: ${diagnosticError.message}`;
+        }
+        throw new Error(`${error.message}. Account-related screen labels: ${screenLabels}`);
+    }
+
+    const visibleIndicators = await this.getVisibleDashboardIndicators();
+
+    // Any configured account-dashboard indicator is sufficient evidence of a session.
+    if (visibleIndicators.length > 0) {
+
+    console.log(
+        `[Login] Existing session confirmed by: ${visibleIndicators.join(', ')}`
+    );
+
+    console.log(
+        '[Login] User already logged in. Navigating to Home page'
+    );
+
+    await HomePage.navigateToHome();
+
+    console.log(
+        '[Login] Home page loaded successfully'
+    );
+
+    return true;
+}
+
+    console.log('[Login] User is not logged in; opening the login form');
+
+    await this.login.click();
+
+    await this.phoneInput.waitForDisplayed({
+        timeout: LOGIN_DATA.timeouts.medium,
+        timeoutMsg: 'Phone number field was not displayed after selecting Log In'
     });
 
-    await this.account.waitForDisplayed({ timeout: 15000 });
-    await this.account.click();
+    const mobileNumber = String(LOGIN_DATA.mobileNumber ?? '').trim();
+    const validMobileNumber = new RegExp(
+        `^\\d{${LOGIN_DATA.mobileNumberLength}}$`
+    );
+    if (!validMobileNumber.test(mobileNumber)) {
+        throw new Error(
+            `Configure FLIPKART_MOBILE_NUMBER as a ${LOGIN_DATA.mobileNumberLength}-digit number before login`
+        );
+    }
 
-    await this.login.waitForDisplayed({
-        reverse: true,
-        timeout: 15000,
-        timeoutMsg: 'Login prompt is still visible after OTP verification'
-    });
+    console.log('[Login] Entering configured mobile number');
+    await this.enterMobileNumber(mobileNumber);
 
-    expect(await this.login.isDisplayed().catch(() => false)).toBe(false);
+    await this.clickContinue();
+
+    await this.waitForOtpScreen();
+
+    console.log('[Login] Enter the OTP and tap Verify manually on the device');
+
+    await browser.waitUntil(
+        async () => !(await this.isOtpInputDisplayed()),
+        {
+            timeout: LOGIN_DATA.timeouts.manualLogin,
+            interval: 1000,
+            timeoutMsg: 'OTP screen did not close after manual verification'
+        }
+    );
+
+    console.log('[Login] OTP screen closed; validating the account dashboard');
+    const accountTab = await this.waitForVisibleElement(
+        this.accountTabLocators,
+        LOGIN_DATA.timeouts.accountState,
+        'Account tab was not available after OTP verification'
+    );
+    await accountTab.click();
+
+    await browser.waitUntil(
+        async () => this.isAuthenticatedAccountDashboard(),
+        {
+            timeout: LOGIN_DATA.timeouts.accountState,
+            interval: 500,
+            timeoutMsg: 'Login completed without displaying a recognized account dashboard indicator'
+        }
+    );
+
+    const confirmedIndicators = await this.getVisibleDashboardIndicators();
+    console.log(
+    `[Login] Login successful; dashboard confirmed by: ${confirmedIndicators.join(', ')}`
+);
+
+await HomePage.navigateToHome();
+
+console.log(
+    '[Login] Home page loaded successfully'
+);
+
+return true;
+}
+
+async getVisibleDashboardIndicators() {
+
+    const indicators = [];
+
+    const checks = {
+        Orders: 'android=new UiSelector().textContains("Orders")',
+        Wishlist: 'android=new UiSelector().textContains("Wishlist")',
+        Hey: 'android=new UiSelector().textContains("Hey")',
+        Member: 'android=new UiSelector().textContains("member")'
+    };
+
+    for (const [name, locator] of Object.entries(checks)) {
+
+        const visible = await $(locator)
+            .isDisplayed()
+            .catch(() => false);
+
+        if (visible) {
+            indicators.push(name);
+        }
+    }
+
+    return indicators;
+}
+
+async waitForVisibleElement(locators, timeout, timeoutMsg) {
+    let visibleElement;
+
+    await browser.waitUntil(
+        async () => {
+            for (const locator of locators) {
+                const elements = await $$(locator);
+                for (const element of elements) {
+                    if (await element.isDisplayed().catch(() => false)) {
+                        visibleElement = element;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        },
+        {
+            timeout,
+            interval: 500,
+            timeoutMsg
+        }
+    );
+
+    return visibleElement;
+}
+
+async getAccountScreenLabels() {
+    const source = await browser.getPageSource();
+    return [...source.matchAll(/(?:text|content-desc)="([^"]*)"/g)]
+        .map(([, label]) => label.trim())
+        .filter((label) => /\b(account|log\s*in|login|orders?|wishlist|membership|hey|welcome)\b/i.test(label))
+        .map((label) => label.replace(/^(hey|welcome)\b.*$/i, '$1, <redacted>'))
+        .slice(0, 10);
+}
+
+async isAuthenticatedAccountDashboard() {
+
+    const indicators = [
+
+        'android=new UiSelector().textContains("Orders")',
+
+        'android=new UiSelector().textContains("Wishlist")',
+
+        'android=new UiSelector().textContains("Hey")',
+
+        'android=new UiSelector().textContains("member")'
+
+    ];
+
+    for (const locator of indicators) {
+
+        const visible = await $(locator)
+            .isDisplayed()
+            .catch(() => false);
+
+        if (visible) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+async returnToHome() {
+    const home = await this.waitForVisibleElement(
+        this.homeTabLocators,
+        LOGIN_DATA.timeouts.medium,
+        'Home tab was not displayed after confirming account state'
+    );
+    await home.click();
+    console.log('[Login] Returned to Home for the product search flow');
 }
 
 async isOtpInputDisplayed() {

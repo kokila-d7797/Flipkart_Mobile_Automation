@@ -11,6 +11,13 @@ const LOGIN_DATA = {
 
     mobileNumberLength: 10,
 
+    accountDashboard: {
+        greetingPrefix: 'Hey,',
+        ordersLabel: 'Orders',
+        wishlistLabel: 'Wishlist',
+        membershipLabels: ['Flipkart Plus', 'Membership']
+    },
+
     invalidMobileCases: [
         {
             id: 'LOGIN_03',
@@ -56,7 +63,9 @@ const LOGIN_DATA = {
         short: 10000,
         medium: 15000,
         appLaunch: 45000,
-        otpManual: 120000
+        accountState: 12000,
+        otpManual: 120000,
+        manualLogin: 180000
     }
 };
 

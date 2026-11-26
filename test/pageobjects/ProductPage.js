@@ -1,21 +1,6 @@
-
 const { expect, $ } = require('@wdio/globals');
 const { TEST_DATA } = require('../testData/pdptestData.js');
-
-const {
-    timeouts,
-    expected,
-    search,
-    labels,
-    formats,
-    app,
-    searchLocators,
-    driverSettings,
-    keys
-} = TEST_DATA;
-
-// ---------- Dynamic locator helpers ----------
-
+const {timeouts,expected,search,labels,formats,searchLocators} = TEST_DATA;
 const descContains = (text, instance = 0) =>
     `android=new UiSelector().descriptionContains("${text}").instance(${instance})`;
 
@@ -28,16 +13,23 @@ const descStartsWith = (text, instance = 0) =>
 const scrollToDesc = (text) =>
     `android=new UiScrollable(new UiSelector().scrollable(true)).scrollIntoView(new UiSelector().descriptionContains("${text}"))`;
 
+const escapeRegex = (text) =>
+    text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const LOCATORS = {
     firstSuggestion: () =>
-        descContains(`${search.query}, in ${search.suggestionCategory}`),
-
-    firstSuggestionLoose: () =>
-        descStartsWith(`${search.query}, in`),
+        descContains(
+            `${search.query}, in ${search.suggestionCategory}`
+        ),
 
     // Product card from the search results
     firstProduct: () =>
-        descStartsWith(`Sponsored, ${search.productKeyword}`),
+        descMatches(
+            new RegExp(
+                `.*${escapeRegex(search.productKeyword)}.*,[ ]*[0-9](?:[.][0-9])?,[ ]*[|].*`,
+                'i'
+            )
+        ),
 
     productTitle: () =>
         `android=new UiSelector().textContains("${search.productKeyword}")`,
@@ -57,8 +49,6 @@ const LOCATORS = {
 
     buyWithEmi: () => descStartsWith(labels.buyWithEmi)
 };
-
-// ---------- Common methods ----------
 
 async function getElement(locatorKey, timeout = timeouts.medium) {
     const element = await $(LOCATORS[locatorKey]());
@@ -102,16 +92,6 @@ class ProductPage {
 
     async openProductDetails() {
 
-        // Preserve the existing Flipkart login session.
-        // Do not terminateApp() or clear application data here.
-        await browser.activateApp(app.packageName);
-
-        try {
-            await driver.updateSettings(driverSettings);
-        } catch (error) {
-            console.log('Could not apply driver settings:', error.message);
-        }
-
         // Open search
         const searchEntry = await findFirstDisplayed(
             searchLocators.searchEntry,
@@ -120,62 +100,56 @@ class ProductPage {
 
         await searchEntry.click();
 
-        let searchInput;
-
-        try {
-            searchInput = await findFirstDisplayed([
-                ...searchLocators.searchInput
-            ]);
-        } catch (error) {
-            searchInput = searchEntry;
-        }
+        const searchInputLocators = Array.isArray(searchLocators.searchInput)
+            ? searchLocators.searchInput
+            : [searchLocators.searchInput];
+        const searchInput = await findFirstDisplayed(searchInputLocators);
 
         await searchInput.setValue(search.query);
 
         // Select search suggestion
-        try {
-            const suggestion = await findFirstDisplayed([
-                LOCATORS.firstSuggestion(),
-                LOCATORS.firstSuggestionLoose()
-            ]);
+        const suggestion = await getElement(
+            'firstSuggestion',
+            timeouts.medium
+        );
+        const suggestionLabel =
+            await suggestion.getAttribute('content-desc');
 
-            await suggestion.click();
-
-        } catch (error) {
-            console.log('Suggestion not displayed. Pressing Enter.');
-
-            await driver.execute('mobile: pressKey', {
-                keycode: keys.enter
-            });
-        }
+        console.log(`Suggestion selected: ${suggestionLabel}`);
+        await suggestion.click();
 
         // Find product card
         const productCard = await getElement('firstProduct', timeouts.long);
 
-        // Read the product title dynamically from content-desc
+        // The card label includes a changing status prefix and rating after the title.
         const description =
             await productCard.getAttribute('content-desc');
 
         console.log('Product card description:', description);
 
-        const match = description.match(
-            /^Sponsored,\s*(.*?),\s*\d(?:\.\d)?\s*,\s*\|/
+        const keywordStart = description
+            .toLowerCase()
+            .indexOf(search.productKeyword.toLowerCase());
+        const ratingStart = description.search(
+            /,\s*\d(?:\.\d)?\s*,\s*\|/
         );
 
-        if (!match) {
+        if (keywordStart < 0 || ratingStart <= keywordStart) {
             throw new Error(
                 'Could not extract product title from product card description.'
             );
         }
 
-        const selectedProductTitle = match[1].trim();
+        const selectedProductTitle = description
+            .slice(keywordStart, ratingStart)
+            .trim();
 
         console.log('Selected product title:', selectedProductTitle);
 
         // Click the selected product
         await productCard.click();
 
-        await getElement('productPrice', timeouts.long);
+        await getElement('productTitle', timeouts.long);
 
         return selectedProductTitle;
     }

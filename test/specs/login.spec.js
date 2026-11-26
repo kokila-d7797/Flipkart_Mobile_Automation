@@ -121,19 +121,14 @@ describe('Flipkart Login Test Scenarios', function () {
     it('LOGIN_11 - Verify button is disabled before OTP entry', async () => {
 
         await loginPage.ensureOnOtpScreen();
-        expect(await loginPage.verifyButton.isDisplayed()).toBe(true);
+        expect(await loginPage.verifyBtn.isDisplayed()).toBe(true);
     });
 
     it('LOGIN_12 - Wrong OTP shows error message', async () => {
-
         await loginPage.ensureOnOtpScreen();
-
         await loginPage.enterOtp(LOGIN_DATA.wrongOtp);
         await loginPage.clickVerify();
-
-        await loginPage.verifyOtpError(
-            LOGIN_DATA.expectedMessages.invalidOtp
-        );
+        await loginPage.verifyOtpError(LOGIN_DATA.expectedMessages.invalidOtp);
     });
 
     // =========================================

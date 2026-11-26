@@ -1,10 +1,16 @@
 
-export const HOME_TEST_DATA = {
+const HOME_TEST_DATA = {
     appPackage: 'com.flipkart.android',
 
     timeouts: {
         short: 10000,
         medium: 15000,
         long: 20000
+    },
+
+    navigation: {
+        maxBackAttempts: 4
     }
 };
+
+module.exports = { HOME_TEST_DATA };

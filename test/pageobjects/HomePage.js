@@ -1,7 +1,5 @@
-
-import { browser, $ } from '@wdio/globals';
-import { HOME_TEST_DATA } from '../testData/homeTestData.js';
-
+const { browser, $ } = require('@wdio/globals');
+const { HOME_TEST_DATA } =require('../testData/homeTestData');
 class HomePage {
 
     // Locators
@@ -10,7 +8,7 @@ class HomePage {
     }
 
     get searchBox() {
-        return $('//android.view.ViewGroup[@resource-id="com.flipkart.android:id/tab_bar"]/android.widget.FrameLayout[@resource-id="com.flipkart.android:id/contentFragment"]/android.widget.FrameLayout[@resource-id="com.flipkart.android:id/contentFragment"]/android.widget.FrameLayout[@resource-id="com.flipkart.android:id/main_content"]/android.widget.FrameLayout/android.view.ViewGroup/android.view.ViewGroup[2]/android.view.ViewGroup[4]/android.view.ViewGroup/android.view.ViewGroup[1]');
+        return $('//android.view.ViewGroup[@resource-id="com.flipkart.android:id/tab_bar"]/android.widget.FrameLayout[@resource-id="com.flipkart.android:id/contentFragment"]/android.widget.FrameLayout[@resource-id="com.flipkart.android:id/contentFragment"]/android.widget.FrameLayout[@resource-id="com.flipkart.android:id/main_content"]/android.widget.FrameLayout/android.view.ViewGroup/android.view.ViewGroup[3]/android.view.ViewGroup[3]/android.view.ViewGroup/android.view.ViewGroup[2]/android.view.ViewGroup');
     }
 
     get categorySection() {
@@ -26,7 +24,7 @@ class HomePage {
     }
 
     get homeTab() {
-        return $('//android.widget.FrameLayout[@resource-id="com.flipkart.android:id/bottom_bar_container_fixed_height"]/android.widget.FrameLayout[@resource-id="com.flipkart.android:id/main_content"]/android.view.ViewGroup/android.view.ViewGroup[1]/android.view.ViewGroup/android.view.ViewGroup/android.view.ViewGroup/android.view.ViewGroup/android.view.ViewGroup[3]/android.view.ViewGroup/android.view.ViewGroup[3]/android.view.ViewGroup');
+        return $('//*[@resource-id="com.flipkart.android:id/bottom_bar_container_fixed_height"]//*[@content-desc="Home"]');
     }
 
     // Common validation method
@@ -69,6 +67,33 @@ class HomePage {
     async verifyHomeTabDisplayed() {
         return await this.isElementDisplayed(this.homeTab);
     }
+
+    async navigateToHome() {
+        const maxBackAttempts = HOME_TEST_DATA.navigation.maxBackAttempts;
+
+        for (let attempt = 0; attempt <= maxBackAttempts; attempt++) {
+            const homeTabDisplayed = await this.homeTab.isDisplayed();
+
+            if (homeTabDisplayed) {
+                await this.homeTab.click();
+                await this.searchBox.waitForDisplayed({
+                    timeout: HOME_TEST_DATA.timeouts.long,
+                    timeoutMsg: 'Home search control was not displayed after selecting Home'
+                });
+
+                console.log('Successfully navigated to Home page');
+                return;
+            }
+
+            if (attempt < maxBackAttempts) {
+                await browser.back();
+            }
+        }
+
+        throw new Error(
+            `Unable to return to Home after ${maxBackAttempts} Back actions`
+        );
+    }
 }
 
-export default new HomePage();
+module.exports = new HomePage();
